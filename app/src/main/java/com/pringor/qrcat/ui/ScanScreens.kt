@@ -25,9 +25,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +57,8 @@ import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 fun ScanningScreen(
@@ -348,17 +353,26 @@ fun WifiDetails(content: String) {
 fun ContactDetails(content: String) {
     val lines = content.lines()
     val name = lines.find { it.startsWith("FN:", true) }?.substringAfter(":")
-        ?: lines.find { it.startsWith("N:", true) }?.substringAfter(":")
+        ?: lines.find { it.startsWith("N:", true) }?.substringAfter(":")?.replace(";", " ")?.trim()
         ?: "Contact"
-    val phone = lines.find { it.startsWith("TEL", true) }?.substringAfterLast(":")
-    val email = lines.find { it.startsWith("EMAIL", true) }?.substringAfterLast(":")
-    val url = lines.find { it.startsWith("URL", true) }?.substringAfterLast(":")
+    val phone = lines.find { it.startsWith("TEL", true) }?.substringAfterLast(":")?.trim()
+    val email = lines.find { it.startsWith("EMAIL", true) }?.substringAfterLast(":")?.trim()
+    val url = lines.find { it.startsWith("URL", true) }?.substringAfterLast(":")?.trim()
+    val org = lines.find { it.startsWith("ORG:", true) }?.substringAfter(":")?.substringBefore(";")?.trim()
+    val title = lines.find { it.startsWith("TITLE:", true) }?.substringAfter(":")?.trim()
+    val address = lines.find { it.startsWith("ADR", true) }?.substringAfterLast(":")?.replace(";", " ")?.trim()
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        if (!title.isNullOrEmpty()) Text(title, style = MaterialTheme.typography.bodyMedium)
+        if (!org.isNullOrEmpty()) Text(org, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+        
+        Spacer(Modifier.height(8.dp))
+        
         phone?.let { Text("Phone: $it", style = MaterialTheme.typography.bodyMedium) }
         email?.let { Text("Email: $it", style = MaterialTheme.typography.bodyMedium) }
         url?.let { Text("Website: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+        if (!address.isNullOrEmpty()) Text("Address: $address", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
 }
 
@@ -386,7 +400,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                 onClick = {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val suggestionBuilder = WifiNetworkSuggestion.Builder()
+                            val suggestionBuilder = android.net.wifi.WifiNetworkSuggestion.Builder()
                                 .setSsid(ssid)
                             
                             if (password.isNotEmpty()) {
@@ -436,11 +450,15 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
         "CONTACT" -> {
             val lines = result.content.lines()
             val name = lines.find { it.startsWith("FN:", true) }?.substringAfter(":")
-                ?: lines.find { it.startsWith("N:", true) }?.substringAfter(":")
+                ?: lines.find { it.startsWith("N:", true) }?.substringAfter(":")?.replace(";", " ")?.trim()
                 ?: "Contact"
-            val phone = lines.find { it.startsWith("TEL", true) }?.substringAfterLast(":")
-            val email = lines.find { it.startsWith("EMAIL", true) }?.substringAfterLast(":")
-            val url = lines.find { it.startsWith("URL", true) }?.substringAfterLast(":")
+            val phone = lines.find { it.startsWith("TEL", true) }?.substringAfterLast(":")?.trim()
+            val email = lines.find { it.startsWith("EMAIL", true) }?.substringAfterLast(":")?.trim()
+            val url = lines.find { it.startsWith("URL", true) }?.substringAfterLast(":")?.trim()
+            val org = lines.find { it.startsWith("ORG:", true) }?.substringAfter(":")?.substringBefore(";")?.trim()
+            val title = lines.find { it.startsWith("TITLE:", true) }?.substringAfter(":")?.trim()
+            val address = lines.find { it.startsWith("ADR", true) }?.substringAfterLast(":")?.replace(";", " ")?.trim()
+            val notesField = lines.find { it.startsWith("NOTE:", true) }?.substringAfter(":")?.trim()
 
             Button(
                 onClick = {
@@ -449,6 +467,20 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                         putExtra(ContactsContract.Intents.Insert.NAME, name)
                         putExtra(ContactsContract.Intents.Insert.PHONE, phone)
                         putExtra(ContactsContract.Intents.Insert.EMAIL, email)
+                        putExtra(ContactsContract.Intents.Insert.COMPANY, org)
+                        putExtra(ContactsContract.Intents.Insert.JOB_TITLE, title)
+                        putExtra(ContactsContract.Intents.Insert.POSTAL, address)
+                        
+                        val fullNotes = buildString {
+                            if (!notesField.isNullOrEmpty()) append(notesField)
+                            if (!url.isNullOrEmpty()) {
+                                if (isNotEmpty()) append("\n")
+                                append("Website: $url")
+                            }
+                        }
+                        if (fullNotes.isNotEmpty()) {
+                            putExtra(ContactsContract.Intents.Insert.NOTES, fullNotes)
+                        }
                     }
                     context.startActivity(intent)
                 },
@@ -507,9 +539,14 @@ fun HistoryScreen(
     viewModel: ScanViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val history by viewModel.history.collectAsState(initial = emptyList())
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
+    val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle()
+
     var selectedScan by remember { mutableStateOf<ScanWithOccurrences?>(null) }
     var expandedContents by remember { mutableStateOf(setOf<String>()) }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -519,66 +556,162 @@ fun HistoryScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.QrCodeScanner, contentDescription = "Back to Scanner")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { showClearConfirm = true }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Clear All")
+                    }
                 }
             )
         }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            items(history) { item ->
-                val isExpanded = expandedContents.contains(item.scan.content)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clickable {
-                            expandedContents = if (isExpanded) {
-                                expandedContents - item.scan.content
-                            } else {
-                                expandedContents + item.scan.content
-                            }
-                        },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = item.scan.title ?: "Untitled Scan", fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "${item.occurrences.size} scan(s)",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            IconButton(onClick = {
-                                selectedScan = item
-                            }) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = "View Details")
-                            }
-                            IconButton(onClick = { viewModel.deleteScan(item.scan) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
-                            }
-                        }
+            // Search and Filters
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                placeholder = { Text("Search scans...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true
+            )
 
-                        if (isExpanded) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            item.occurrences.sortedByDescending { it.timestamp }.forEach { occurrence ->
-                                Text(
-                                    text = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(occurrence.timestamp)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Type Filter
+                Box(modifier = Modifier.weight(1f)) {
+                    var filterExpanded by remember { mutableStateOf(false) }
+                    FilterChip(
+                        selected = typeFilter != "All",
+                        onClick = { filterExpanded = true },
+                        label = { Text(if (typeFilter == "All") "Filter Type" else "Type: $typeFilter") },
+                        leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) }
+                    )
+                    DropdownMenu(
+                        expanded = filterExpanded,
+                        onDismissRequest = { filterExpanded = false }
+                    ) {
+                        listOf("All", "URL", "TEXT", "WIFI", "CONTACT").forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = {
+                                    viewModel.setTypeFilter(type)
+                                    filterExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Sort Order
+                FilterChip(
+                    selected = true,
+                    onClick = {
+                        viewModel.setSortOrder(
+                            if (sortOrder == SortOrder.NEWEST) SortOrder.OLDEST else SortOrder.NEWEST
+                        )
+                    },
+                    label = { Text(if (sortOrder == SortOrder.NEWEST) "Newest First" else "Oldest First") },
+                    leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) }
+                )
+            }
+
+            if (history.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No scans found", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    items(history) { item ->
+                        val isExpanded = expandedContents.contains(item.scan.content)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    expandedContents = if (isExpanded) {
+                                        expandedContents - item.scan.content
+                                    } else {
+                                        expandedContents + item.scan.content
+                                    }
+                                },
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = item.scan.title ?: "Untitled Scan", fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "${item.occurrences.size} scan(s) • ${item.scan.type}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    IconButton(onClick = { selectedScan = item }) {
+                                        Icon(Icons.Default.QrCodeScanner, contentDescription = "View Details")
+                                    }
+                                    IconButton(onClick = { viewModel.deleteScan(item.scan) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                    }
+                                }
+
+                                if (isExpanded) {
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                    item.occurrences.sortedByDescending { it.timestamp }.forEach { occurrence ->
+                                        Text(
+                                            text = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(occurrence.timestamp)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(vertical = 2.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Clear All History") },
+            text = { Text("Are you sure you want to delete all scans? This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearAllHistory()
+                        showClearConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (selectedScan != null) {

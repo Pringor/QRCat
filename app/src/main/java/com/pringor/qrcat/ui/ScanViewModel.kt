@@ -17,13 +17,16 @@ import com.google.mlkit.vision.common.InputImage
 import com.pringor.qrcat.data.AppDatabase
 import com.pringor.qrcat.data.ScanEntity
 import com.pringor.qrcat.data.ScanOccurrenceEntity
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 
 enum class ScanMode {
     SINGLE, CONTINUOUS
+}
+
+enum class SortOrder {
+    NEWEST, OLDEST
 }
 
 data class ScanResult(
@@ -52,7 +55,44 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
 
     private val seenContents = mutableSetOf<String>()
 
-    val history = scanDao.getAllScansWithOccurrences()
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(SortOrder.NEWEST)
+    val sortOrder = _sortOrder.asStateFlow()
+
+    private val _typeFilter = MutableStateFlow("All")
+    val typeFilter = _typeFilter.asStateFlow()
+
+    val history = combine(
+        scanDao.getAllScansWithOccurrences(),
+        _searchQuery,
+        _sortOrder,
+        _typeFilter
+    ) { scans, query, sort, type ->
+        scans.filter { item ->
+            val matchesQuery = item.scan.content.contains(query, ignoreCase = true) || 
+                             (item.scan.title?.contains(query, ignoreCase = true) == true)
+            val matchesType = type == "All" || item.scan.type == type
+            matchesQuery && matchesType
+        }.sortedWith { a, b ->
+            val timeA = a.occurrences.maxByOrNull { it.timestamp }?.timestamp ?: 0L
+            val timeB = b.occurrences.maxByOrNull { it.timestamp }?.timestamp ?: 0L
+            if (sort == SortOrder.NEWEST) timeB.compareTo(timeA) else timeA.compareTo(timeB)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setSortOrder(order: SortOrder) {
+        _sortOrder.value = order
+    }
+
+    fun setTypeFilter(type: String) {
+        _typeFilter.value = type
+    }
 
     fun setScanMode(mode: ScanMode) {
         _scanMode.value = mode
@@ -210,6 +250,12 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteScan(scan: ScanEntity) {
         viewModelScope.launch {
             scanDao.deleteScan(scan)
+        }
+    }
+
+    fun clearAllHistory() {
+        viewModelScope.launch {
+            scanDao.deleteAllScans()
         }
     }
 }
