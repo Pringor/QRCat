@@ -2,6 +2,7 @@ package com.pringor.qrcat.ui
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
@@ -17,9 +18,15 @@ import com.google.mlkit.vision.common.InputImage
 import com.pringor.qrcat.data.AppDatabase
 import com.pringor.qrcat.data.ScanEntity
 import com.pringor.qrcat.data.ScanOccurrenceEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import android.graphics.Bitmap
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileOutputStream
+import android.content.ContentValues
+import android.provider.MediaStore
 
 enum class ScanMode {
     SINGLE, CONTINUOUS
@@ -100,61 +107,78 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onQrDetected(content: String, type: String) {
-        if (_scanMode.value == ScanMode.SINGLE && _lastResult.value != null) return
-        if (_scanMode.value == ScanMode.CONTINUOUS && seenContents.contains(content)) return
-
-        val timestamp = System.currentTimeMillis()
-        val result = ScanResult(content, type, timestamp)
-        
-        val title = when (type) {
-            "URL" -> content
-            "WIFI" -> {
-                val ssid = content.substringAfter("S:", "").substringBefore(";")
-                "Wi-Fi: $ssid"
-            }
-            "CONTACT" -> {
-                val name = content.lines().firstOrNull { it.startsWith("FN:", true) }?.removePrefix("FN:")
-                    ?: content.lines().firstOrNull { it.startsWith("N:", true) }?.removePrefix("N:")
-                    ?: "Contact"
-                "Contact: $name"
-            }
-            else -> "Text Scan"
-        }
-        
-        if (_scanMode.value == ScanMode.SINGLE) {
-            _lastResult.value = result
-        } else {
-            seenContents.add(content)
-            Toast.makeText(getApplication(), "Scanned \"$title\"", Toast.LENGTH_SHORT).show()
-        }
-        
-        triggerVibration()
-        
         viewModelScope.launch {
-            val scanEntity = ScanEntity(
-                content = content,
-                type = type,
-                title = title
-            )
-            scanDao.insertScan(scanEntity)
-            scanDao.insertOccurrence(
-                ScanOccurrenceEntity(
-                    scanContent = content,
-                    timestamp = timestamp
+            if (_scanMode.value == ScanMode.SINGLE && _lastResult.value != null) return@launch
+            if (_scanMode.value == ScanMode.CONTINUOUS && seenContents.contains(content)) return@launch
+
+            val timestamp = System.currentTimeMillis()
+            val result = ScanResult(content, type, timestamp)
+            
+            val title = when (type) {
+                "URL" -> content
+                "WIFI" -> {
+                    val ssid = content.substringAfter("S:", "").substringBefore(";")
+                    "Wi-Fi: $ssid"
+                }
+                "CONTACT" -> {
+                    val name = content.lines().firstOrNull { it.startsWith("FN:", true) }?.removePrefix("FN:")
+                        ?: content.lines().firstOrNull { it.startsWith("N:", true) }?.removePrefix("N:")
+                        ?: "Contact"
+                    "Contact: $name"
+                }
+                else -> "Text Scan"
+            }
+            
+            if (_scanMode.value == ScanMode.SINGLE) {
+                _lastResult.value = result
+            } else {
+                seenContents.add(content)
+                Toast.makeText(getApplication(), "Scanned \"$title\"", Toast.LENGTH_SHORT).show()
+            }
+            
+            triggerVibration()
+            
+            viewModelScope.launch(Dispatchers.IO) {
+                val scanEntity = ScanEntity(
+                    content = content,
+                    type = type,
+                    title = title
                 )
-            )
+                scanDao.insertScan(scanEntity)
+                scanDao.insertOccurrence(
+                    ScanOccurrenceEntity(
+                        scanContent = content,
+                        timestamp = timestamp
+                    )
+                )
+            }
         }
     }
 
     fun scanImageFromUri(uri: Uri) {
-        try {
-            val image = InputImage.fromFilePath(getApplication(), uri)
-            scanner.process(image)
-                .addOnSuccessListener { barcodes ->
-                    if (barcodes.isEmpty()) {
-                        Toast.makeText(getApplication(), "No QR code found in image", Toast.LENGTH_SHORT).show()
-                    } else if (barcodes.size > 1) {
-                        val results = barcodes.map { barcode ->
+        viewModelScope.launch {
+            try {
+                val image = withContext(Dispatchers.IO) {
+                    InputImage.fromFilePath(getApplication(), uri)
+                }
+                scanner.process(image)
+                    .addOnSuccessListener { barcodes ->
+                        if (barcodes.isEmpty()) {
+                            Toast.makeText(getApplication(), "No QR code found in image", Toast.LENGTH_SHORT).show()
+                        } else if (barcodes.size > 1) {
+                            val results = barcodes.map { barcode ->
+                                val content = barcode.rawValue ?: ""
+                                val type = when (barcode.valueType) {
+                                    Barcode.TYPE_URL -> "URL"
+                                    Barcode.TYPE_WIFI -> "WIFI"
+                                    Barcode.TYPE_CONTACT_INFO -> "CONTACT"
+                                    else -> "TEXT"
+                                }
+                                ScanResult(content, type)
+                            }
+                            _multipleResults.value = results
+                        } else {
+                            val barcode = barcodes[0]
                             val content = barcode.rawValue ?: ""
                             val type = when (barcode.valueType) {
                                 Barcode.TYPE_URL -> "URL"
@@ -162,26 +186,15 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                                 Barcode.TYPE_CONTACT_INFO -> "CONTACT"
                                 else -> "TEXT"
                             }
-                            ScanResult(content, type)
+                            onQrDetected(content, type)
                         }
-                        _multipleResults.value = results
-                    } else {
-                        val barcode = barcodes[0]
-                        val content = barcode.rawValue ?: ""
-                        val type = when (barcode.valueType) {
-                            Barcode.TYPE_URL -> "URL"
-                            Barcode.TYPE_WIFI -> "WIFI"
-                            Barcode.TYPE_CONTACT_INFO -> "CONTACT"
-                            else -> "TEXT"
-                        }
-                        onQrDetected(content, type)
                     }
-                }
-                .addOnFailureListener {
-                    Toast.makeText(getApplication(), "Failed to scan image", Toast.LENGTH_SHORT).show()
-                }
-        } catch (e: Exception) {
-            Toast.makeText(getApplication(), "Error loading image", Toast.LENGTH_SHORT).show()
+                    .addOnFailureListener {
+                        Toast.makeText(getApplication(), "Failed to scan image", Toast.LENGTH_SHORT).show()
+                    }
+            } catch (e: Exception) {
+                Toast.makeText(getApplication(), "Error loading image", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -256,6 +269,80 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllHistory() {
         viewModelScope.launch {
             scanDao.deleteAllScans()
+        }
+    }
+
+    fun shareBitmap(bitmap: Bitmap) {
+        viewModelScope.launch {
+            try {
+                val cachePath = File(getApplication<Application>().cacheDir, "shared_images")
+                cachePath.mkdirs()
+                val file = File(cachePath, "generated_qr_${System.currentTimeMillis()}.png")
+                val stream = FileOutputStream(file)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                stream.close()
+
+                val uri = FileProvider.getUriForFile(
+                    getApplication(),
+                    "${getApplication<Application>().packageName}.fileprovider",
+                    file
+                )
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/png"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(intent, "Share QR Code")
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                getApplication<Application>().startActivity(chooser)
+            } catch (e: Exception) {
+                Toast.makeText(getApplication(), "Failed to share image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun saveBitmapToGallery(bitmap: Bitmap) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val filename = "QRCat_${System.currentTimeMillis()}.png"
+                val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                }
+
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                }
+
+                val resolver = getApplication<Application>().contentResolver
+                val uri = resolver.insert(collection, values)
+
+                uri?.let {
+                    resolver.openOutputStream(it)?.use { stream ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        values.clear()
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        resolver.update(it, values, null, null)
+                    }
+                    
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), "Image saved to gallery", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(getApplication(), "Failed to save image", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }

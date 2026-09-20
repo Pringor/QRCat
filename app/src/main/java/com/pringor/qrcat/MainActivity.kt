@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,20 +82,36 @@ class MainActivity : ComponentActivity() {
                         if (showBottomBar) {
                             NavigationBar {
                                 bottomNavItems.forEach { screen ->
-                                    val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true ||
-                                            (screen == Screen.Scan && currentDestination?.route == "camera_scanner")
+                                    val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                                     
                                     NavigationBarItem(
                                         icon = { Icon(screen.icon, contentDescription = null) },
                                         label = { Text(screen.label) },
                                         selected = isSelected,
                                         onClick = {
-                                            navController.navigate(screen.route) {
-                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                    saveState = true
+                                            if (screen.route == Screen.Home.route) {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        inclusive = true
+                                                    }
+                                                    launchSingleTop = true
                                                 }
-                                                launchSingleTop = true
-                                                restoreState = true
+                                            } else if (screen.route == Screen.Scan.route) {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = false
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = false
+                                                }
+                                            } else {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
                                             }
                                         }
                                     )
@@ -124,9 +141,7 @@ class MainActivity : ComponentActivity() {
                                 ScanningScreen(
                                     viewModel = viewModel,
                                     onNavigateToHistory = {
-                                        navController.navigate(Screen.Library.route) {
-                                            popUpTo(Screen.Home.route)
-                                        }
+                                        navController.popBackStack()
                                     }
                                 )
                             } else {
@@ -138,7 +153,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         composable(Screen.Generate.route) {
-                            GenerateScreen()
+                            GenerateScreen(viewModel = viewModel)
                         }
                         composable(Screen.Library.route) {
                             LibraryScreen(
@@ -146,6 +161,26 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToCamera = { navController.navigate("camera_scanner") }
                             )
                         }
+                    }
+
+                    // Global Result Dialogs - Handle Camera, Gallery, and Share results anywhere
+                    val lastResult by viewModel.lastResult.collectAsState()
+                    val multipleResults by viewModel.multipleResults.collectAsState()
+                    val scanMode by viewModel.scanMode.collectAsState()
+
+                    if (lastResult != null && scanMode == ScanMode.SINGLE) {
+                        ResultDialog(
+                            result = lastResult!!,
+                            onDismiss = { viewModel.clearLastResult() }
+                        )
+                    }
+
+                    if (multipleResults != null) {
+                        MultipleResultsDialog(
+                            results = multipleResults!!,
+                            onConfirm = { viewModel.addMultipleToLibrary(multipleResults!!) },
+                            onDismiss = { viewModel.clearMultipleResults() }
+                        )
                     }
                 }
             }

@@ -22,9 +22,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +40,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.pringor.qrcat.data.ScanWithOccurrences
 import com.pringor.qrcat.scanner.QrAnalyzer
@@ -49,10 +54,19 @@ import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.Bitmap
 import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
+import androidx.camera.core.CameraControl
+import androidx.camera.core.CameraInfo
 import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import kotlinx.coroutines.delay
 
 @Composable
 fun ScanningScreen(
@@ -63,8 +77,21 @@ fun ScanningScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scanMode by viewModel.scanMode.collectAsStateWithLifecycle()
-    val lastResult by viewModel.lastResult.collectAsStateWithLifecycle()
-    val multipleResults by viewModel.multipleResults.collectAsStateWithLifecycle()
+
+    var cameraSelector by remember { mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA) }
+    var isTorchOn by remember { mutableStateOf(false) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var isZooming by remember { mutableStateOf(false) }
+    
+    val cameraControl = remember { mutableStateOf<CameraControl?>(null) }
+    val cameraInfo = remember { mutableStateOf<CameraInfo?>(null) }
+
+    // Reset torch when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraControl.value?.enableTorch(false)
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -76,125 +103,203 @@ fun ScanningScreen(
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { ctx ->
-                val previewView = PreviewView(ctx)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
-                    }
-
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-                        .also {
-                            it.setAnalyzer(cameraExecutor, QrAnalyzer { barcodes ->
-                                val barcode = barcodes.firstOrNull()
-                                if (barcode != null) {
-                                    val content = barcode.rawValue ?: ""
-                                    val type = when (barcode.valueType) {
-                                        Barcode.TYPE_URL -> "URL"
-                                        Barcode.TYPE_WIFI -> "WIFI"
-                                        Barcode.TYPE_CONTACT_INFO -> "CONTACT"
-                                        else -> "TEXT"
-                                    }
-                                    viewModel.onQrDetected(content, type)
-                                }
-                            })
-                        }
-
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageAnalysis
-                        )
-                    } catch (exc: Exception) {
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-                previewView
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Overlay UI - Scan Mode Toggle
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 48.dp, start = 16.dp, end = 16.dp)
-        ) {
-            Surface(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (scanMode == ScanMode.SINGLE) "Single Scan" else "Continuous Scan",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    IconButton(
-                        onClick = {
-                            viewModel.setScanMode(
-                                if (scanMode == ScanMode.SINGLE) ScanMode.CONTINUOUS else ScanMode.SINGLE
-                            )
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (scanMode == ScanMode.SINGLE) Icons.Default.Filter1 else Icons.Default.AllInclusive,
-                            contentDescription = "Toggle Scan Mode",
-                            tint = Color.White
-                        )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    cameraControl.value?.let { control ->
+                        val currentRatio = cameraInfo.value?.zoomState?.value?.zoomRatio ?: 1f
+                        val minRatio = cameraInfo.value?.zoomState?.value?.minZoomRatio ?: 1f
+                        val maxRatio = cameraInfo.value?.zoomState?.value?.maxZoomRatio ?: 1f
+                        
+                        val newRatio = (currentRatio * zoom).coerceIn(minRatio, maxRatio)
+                        control.setZoomRatio(newRatio)
+                        
+                        // Update indicator
+                        zoomRatio = newRatio
+                        isZooming = true
                     }
                 }
             }
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 32.dp, end = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            IconButton(
-                onClick = {
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.extraLarge)
-            ) {
-                Icon(Icons.Default.Image, contentDescription = "Import from Gallery")
+    ) {
+        // Automatically hide zoom indicator after 2 seconds
+        LaunchedEffect(isZooming) {
+            if (isZooming) {
+                delay(2000)
+                isZooming = false
             }
         }
 
-        if (lastResult != null && scanMode == ScanMode.SINGLE) {
-            ResultDialog(
-                result = lastResult!!,
-                onDismiss = { viewModel.clearLastResult() }
+        key(cameraSelector) {
+            AndroidView(
+                factory = { ctx ->
+                    val previewView = PreviewView(ctx)
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
+                        val preview = Preview.Builder().build().also {
+                            it.surfaceProvider = previewView.surfaceProvider
+                        }
+
+                        val imageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                            .also {
+                                it.setAnalyzer(cameraExecutor, QrAnalyzer { barcodes ->
+                                    val barcode = barcodes.firstOrNull()
+                                    if (barcode != null) {
+                                        val content = barcode.rawValue ?: ""
+                                        val type = when (barcode.valueType) {
+                                            Barcode.TYPE_URL -> "URL"
+                                            Barcode.TYPE_WIFI -> "WIFI"
+                                            Barcode.TYPE_CONTACT_INFO -> "CONTACT"
+                                            else -> "TEXT"
+                                        }
+                                        viewModel.onQrDetected(content, type)
+                                    }
+                                })
+                            }
+
+                        try {
+                            cameraProvider.unbindAll()
+                            val camera = cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                imageAnalysis
+                            )
+                            
+                            cameraControl.value = camera.cameraControl
+                            cameraInfo.value = camera.cameraInfo
+                            
+                            // SYNC FLASHLIGHT: Apply UI state to new camera hardware
+                            if (camera.cameraInfo.hasFlashUnit()) {
+                                camera.cameraControl.enableTorch(isTorchOn)
+                            } else {
+                                // Reset UI if new camera doesn't support flash
+                                isTorchOn = false
+                            }
+                            
+                        } catch (exc: Exception) {
+                        }
+                    }, ContextCompat.getMainExecutor(ctx))
+                    previewView
+                },
+                modifier = Modifier.fillMaxSize()
             )
         }
 
-        if (multipleResults != null) {
-            MultipleResultsDialog(
-                results = multipleResults!!,
-                onConfirm = { viewModel.addMultipleToLibrary(multipleResults!!) },
-                onDismiss = { viewModel.clearMultipleResults() }
-            )
+        // Overlay UI - Camera Controls
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 48.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Back button
+                Surface(
+                    color = Color.Black.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    }
+                }
+
+                Row {
+                    // Flashlight Toggle
+                    val hasFlash = cameraInfo.value?.hasFlashUnit() == true
+                    if (hasFlash) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    val nextState = !isTorchOn
+                                    cameraControl.value?.enableTorch(nextState)
+                                    isTorchOn = nextState
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                    contentDescription = "Toggle Flashlight",
+                                    tint = if (isTorchOn) Color.Yellow else Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Camera Switch (Front/Back)
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                                    CameraSelector.DEFAULT_FRONT_CAMERA
+                                } else {
+                                    CameraSelector.DEFAULT_BACK_CAMERA
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FlipCameraAndroid,
+                                contentDescription = "Switch Camera",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    // Scan Mode Toggle (Icon only)
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                viewModel.setScanMode(
+                                    if (scanMode == ScanMode.SINGLE) ScanMode.CONTINUOUS else ScanMode.SINGLE
+                                )
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (scanMode == ScanMode.SINGLE) Icons.Default.Filter1 else Icons.Default.AllInclusive,
+                                contentDescription = "Toggle Scan Mode",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Zoom Indicator (Fading)
+            val alpha by animateFloatAsState(targetValue = if (isZooming) 1f else 0f)
+            if (alpha > 0f) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.5f * alpha),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 32.dp)
+                ) {
+                    Text(
+                        text = String.format(Locale.getDefault(), "%.1fx", zoomRatio),
+                        color = Color.White.copy(alpha = alpha),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -404,7 +509,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                 onClick = {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val suggestionBuilder = android.net.wifi.WifiNetworkSuggestion.Builder()
+                            val suggestionBuilder = WifiNetworkSuggestion.Builder()
                                 .setSsid(ssid)
                             
                             if (password.isNotEmpty()) {
@@ -623,7 +728,7 @@ fun LibraryScreen(
                         )
                     },
                     label = { Text(if (sortOrder == SortOrder.NEWEST) "Newest First" else "Oldest First") },
-                    leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) }
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) }
                 )
             }
 
@@ -847,20 +952,281 @@ fun ScanHubScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GenerateScreen() {
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Generate") })
+fun GenerateScreen(viewModel: ScanViewModel) {
+    var selectedType by remember { mutableStateOf<String?>(null) }
+    
+    // Form States
+    var url by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf("") }
+    
+    var wifiSsid by remember { mutableStateOf("") }
+    var wifiPassword by remember { mutableStateOf("") }
+    var wifiSecurity by remember { mutableStateOf("WPA") }
+    
+    var contactName by remember { mutableStateOf("") }
+    var contactPhone by remember { mutableStateOf("") }
+    var contactEmail by remember { mutableStateOf("") }
+    var contactOrg by remember { mutableStateOf("") }
+    var contactUrl by remember { mutableStateOf("") }
+
+    var generatedPayload by remember { mutableStateOf<String?>(null) }
+
+    if (generatedPayload != null) {
+        QrPreviewScreen(
+            payload = generatedPayload!!,
+            onBack = { generatedPayload = null },
+            viewModel = viewModel
+        )
+    } else if (selectedType == null) {
+        TypeSelectionScreen(onTypeSelected = { selectedType = it })
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Generate $selectedType") },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedType = null }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                when (selectedType) {
+                    "URL" -> {
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text("Website URL") },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("https://example.com") }
+                        )
+                    }
+                    "Text" -> {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            label = { Text("Plain Text") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3
+                        )
+                    }
+                    "Wi-Fi" -> {
+                        OutlinedTextField(
+                            value = wifiSsid,
+                            onValueChange = { wifiSsid = it },
+                            label = { Text("Network Name (SSID)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = wifiPassword,
+                            onValueChange = { wifiPassword = it },
+                            label = { Text("Password") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("Security Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.Start))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            RadioButton(selected = wifiSecurity == "WPA", onClick = { wifiSecurity = "WPA" })
+                            Text("WPA/WPA2")
+                            Spacer(Modifier.width(16.dp))
+                            RadioButton(selected = wifiSecurity == "WEP", onClick = { wifiSecurity = "WEP" })
+                            Text("WEP")
+                            Spacer(Modifier.width(16.dp))
+                            RadioButton(selected = wifiSecurity == "nopass", onClick = { wifiSecurity = "nopass" })
+                            Text("None")
+                        }
+                    }
+                    "Contact" -> {
+                        OutlinedTextField(value = contactName, onValueChange = { contactName = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = contactPhone, onValueChange = { contactPhone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = contactEmail, onValueChange = { contactEmail = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = contactOrg, onValueChange = { contactOrg = it }, label = { Text("Organization") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = contactUrl, onValueChange = { contactUrl = it }, label = { Text("Website") }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        generatedPayload = when (selectedType) {
+                            "URL" -> if (url.startsWith("http")) url else "https://$url"
+                            "Text" -> text
+                            "Wi-Fi" -> "WIFI:T:$wifiSecurity;S:$wifiSsid;P:$wifiPassword;;"
+                            "Contact" -> "BEGIN:VCARD\nVERSION:3.0\nFN:$contactName\nORG:$contactOrg\nTEL:$contactPhone\nEMAIL:$contactEmail\nURL:$contactUrl\nEND:VCARD"
+                            else -> ""
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = when (selectedType) {
+                        "URL" -> url.isNotEmpty()
+                        "Text" -> text.isNotEmpty()
+                        "Wi-Fi" -> wifiSsid.isNotEmpty()
+                        "Contact" -> contactName.isNotEmpty()
+                        else -> false
+                    }
+                ) {
+                    Text("Generate QR Code")
+                }
+            }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TypeSelectionScreen(onTypeSelected: (String) -> Unit) {
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Generate QR") }) }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.Center
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("QR Generation - Coming Soon", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+            val types = listOf(
+                "URL" to Icons.Default.Link,
+                "Text" to Icons.Default.Notes,
+                "Wi-Fi" to Icons.Default.Wifi,
+                "Contact" to Icons.Default.Person
+            )
+            
+            types.forEach { (label, icon) ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .clickable { onTypeSelected(label) },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(16.dp))
+                        Text(label, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                }
+            }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun QrPreviewScreen(
+    payload: String,
+    onBack: () -> Unit,
+    viewModel: ScanViewModel
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("QR Preview") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val bitmap = remember(payload) { generateQrBitmap(payload) }
+            
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Generated QR Code",
+                    modifier = Modifier
+                        .size(280.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .padding(16.dp)
+                )
+                
+                Spacer(Modifier.height(32.dp))
+                
+                Button(
+                    onClick = { viewModel.saveBitmapToGallery(bitmap) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Save to Gallery")
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                OutlinedButton(
+                    onClick = { viewModel.shareBitmap(bitmap) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share Image")
+                }
+            } else {
+                Text("Error generating QR code", color = MaterialTheme.colorScheme.error)
+            }
+            
+            Spacer(Modifier.weight(1f))
+            
+            Text(
+                "Previewing content:",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray
+            )
+            Text(
+                payload,
+                maxLines = 2,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+private fun generateQrBitmap(content: String, size: Int = 512): Bitmap? {
+    return try {
+        val writer = QRCodeWriter()
+        val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size)
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                bmp.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bmp
+    } catch (e: Exception) {
+        null
     }
 }
 
