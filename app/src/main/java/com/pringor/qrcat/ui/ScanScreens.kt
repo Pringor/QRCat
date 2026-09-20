@@ -24,13 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -129,30 +123,49 @@ fun ScanningScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Overlay UI
-        Column(
+        // Overlay UI - Scan Mode Toggle
+        Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(top = 48.dp, start = 16.dp, end = 16.dp)
         ) {
-            Text(
-                "Scanning Mode: ${scanMode.name}",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.small).padding(8.dp)
-            )
-            Row(modifier = Modifier.padding(top = 8.dp)) {
-                Button(onClick = { viewModel.setScanMode(ScanMode.SINGLE) }) { Text("Single") }
-                Spacer(Modifier.width(8.dp))
-                Button(onClick = { viewModel.setScanMode(ScanMode.CONTINUOUS) }) { Text("Continuous") }
+            Surface(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = if (scanMode == ScanMode.SINGLE) "Single Scan" else "Continuous Scan",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    IconButton(
+                        onClick = {
+                            viewModel.setScanMode(
+                                if (scanMode == ScanMode.SINGLE) ScanMode.CONTINUOUS else ScanMode.SINGLE
+                            )
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (scanMode == ScanMode.SINGLE) Icons.Default.Filter1 else Icons.Default.AllInclusive,
+                            contentDescription = "Toggle Scan Mode",
+                            tint = Color.White
+                        )
+                    }
+                }
             }
         }
 
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(32.dp),
+                .padding(bottom = 32.dp, end = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             IconButton(
@@ -166,15 +179,6 @@ fun ScanningScreen(
                     .background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.extraLarge)
             ) {
                 Icon(Icons.Default.Image, contentDescription = "Import from Gallery")
-            }
-            Spacer(Modifier.height(16.dp))
-            IconButton(
-                onClick = onNavigateToHistory,
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.extraLarge)
-            ) {
-                Icon(Icons.Default.History, contentDescription = "History")
             }
         }
 
@@ -535,9 +539,9 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(
+fun LibraryScreen(
     viewModel: ScanViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateToCamera: () -> Unit
 ) {
     val history by viewModel.history.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -551,12 +555,7 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan History") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Back to Scanner")
-                    }
-                },
+                title = { Text("Scan Library") },
                 actions = {
                     IconButton(onClick = { showClearConfirm = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "Clear All")
@@ -722,6 +721,146 @@ fun HistoryScreen(
             onDismiss = { selectedScan = null },
             showScanAgain = false
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen() {
+    var languageExpanded by remember { mutableStateOf(false) }
+    var selectedLanguage by remember { mutableStateOf("English") }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("QRCat") },
+                actions = {
+                    IconButton(onClick = { /* Settings */ }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                OutlinedButton(onClick = { languageExpanded = true }) {
+                    Icon(Icons.Default.Language, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(selectedLanguage)
+                }
+                DropdownMenu(
+                    expanded = languageExpanded,
+                    onDismissRequest = { languageExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("English") },
+                        onClick = {
+                            selectedLanguage = "English"
+                            languageExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Korean (한국어)") },
+                        onClick = {
+                            selectedLanguage = "Korean (한국어)"
+                            languageExpanded = false
+                        }
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(32.dp))
+            
+            Text(
+                "Welcome to QRCat",
+                style = MaterialTheme.typography.headlineSmall
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScanHubScreen(
+    onNavigateToCamera: () -> Unit,
+    viewModel: ScanViewModel
+) {
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            uri?.let { viewModel.scanImageFromUri(it) }
+        }
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Scan") })
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Button(
+                onClick = onNavigateToCamera,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text("Camera Scan", style = MaterialTheme.typography.titleMedium)
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            OutlinedButton(
+                onClick = {
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Image, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text("Gallery Scan", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GenerateScreen() {
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Generate") })
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("QR Generation - Coming Soon", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+        }
     }
 }
 
