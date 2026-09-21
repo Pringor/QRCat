@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.pringor.qrcat.R
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -27,6 +28,8 @@ import java.io.File
 import java.io.FileOutputStream
 import android.content.ContentValues
 import android.provider.MediaStore
+import java.text.SimpleDateFormat
+import java.util.*
 
 enum class ScanMode {
     SINGLE, CONTINUOUS
@@ -44,6 +47,7 @@ data class ScanResult(
 
 class ScanViewModel(application: Application) : AndroidViewModel(application) {
     private val scanDao = AppDatabase.getDatabase(application).scanDao()
+    private val prefs = application.getSharedPreferences("qrcat_prefs", Context.MODE_PRIVATE)
 
     private val scanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder()
@@ -54,11 +58,14 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAdsEnabled = MutableStateFlow(true)
     val isAdsEnabled: StateFlow<Boolean> = _isAdsEnabled.asStateFlow()
 
-    private val _vibrationEnabled = MutableStateFlow(true)
+    private val _vibrationEnabled = MutableStateFlow(prefs.getBoolean("vibration", true))
     val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
 
-    private val _themeConfig = MutableStateFlow("System")
+    private val _themeConfig = MutableStateFlow(prefs.getString("theme", "System") ?: "System")
     val themeConfig: StateFlow<String> = _themeConfig.asStateFlow()
+
+    private val _language = MutableStateFlow(prefs.getString("language", "English") ?: "English")
+    val language: StateFlow<String> = _language.asStateFlow()
 
     private val _scanMode = MutableStateFlow(ScanMode.SINGLE)
     val scanMode: StateFlow<ScanMode> = _scanMode.asStateFlow()
@@ -142,7 +149,7 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                 _lastResult.value = result
             } else {
                 seenContents.add(content)
-                Toast.makeText(getApplication(), "Scanned \"$title\"", Toast.LENGTH_SHORT).show()
+                Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.scan_toast_success, title), Toast.LENGTH_SHORT).show()
             }
             
             triggerVibration()
@@ -173,7 +180,7 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                 scanner.process(image)
                     .addOnSuccessListener { barcodes ->
                         if (barcodes.isEmpty()) {
-                            Toast.makeText(getApplication(), "No QR code found in image", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.error_no_qr_found), Toast.LENGTH_SHORT).show()
                         } else if (barcodes.size > 1) {
                             val results = barcodes.map { barcode ->
                                 val content = barcode.rawValue ?: ""
@@ -199,10 +206,10 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     .addOnFailureListener {
-                        Toast.makeText(getApplication(), "Failed to scan image", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.error_scan_failed), Toast.LENGTH_SHORT).show()
                     }
             } catch (e: Exception) {
-                Toast.makeText(getApplication(), "Error loading image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.error_load_image), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -239,7 +246,7 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             triggerVibration()
-            Toast.makeText(getApplication(), "Added ${results.size} codes to library", Toast.LENGTH_SHORT).show()
+            Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.toast_added_multiple, results.size), Toast.LENGTH_SHORT).show()
             _multipleResults.value = null
         }
     }
@@ -250,10 +257,69 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setVibrationEnabled(enabled: Boolean) {
         _vibrationEnabled.value = enabled
+        prefs.edit().putBoolean("vibration", enabled).apply()
     }
 
     fun setThemeConfig(config: String) {
         _themeConfig.value = config
+        prefs.edit().putString("theme", config).apply()
+    }
+
+    fun setLanguage(lang: String) {
+        _language.value = lang
+        prefs.edit().putString("language", lang).apply()
+    }
+
+    fun exportHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val currentHistory = history.value
+                if (currentHistory.isEmpty()) return@launch
+
+                val sb = StringBuilder()
+                sb.append("Title,Type,Content,Timestamp\n")
+                
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                
+                currentHistory.forEach { item ->
+                    val title = item.scan.title?.replace("\"", "\"\"") ?: ""
+                    val type = item.scan.type
+                    val content = item.scan.content.replace("\"", "\"\"")
+                    
+                    item.occurrences.forEach { occ ->
+                        val time = dateFormat.format(Date(occ.timestamp))
+                        sb.append("\"$title\",\"$type\",\"$content\",\"$time\"\n")
+                    }
+                }
+
+                val cachePath = File(getApplication<Application>().cacheDir, "exports")
+                cachePath.mkdirs()
+                val file = File(cachePath, "QRCat_History_${System.currentTimeMillis()}.csv")
+                val stream = FileOutputStream(file)
+                stream.write(sb.toString().toByteArray())
+                stream.close()
+
+                val uri = FileProvider.getUriForFile(
+                    getApplication(),
+                    "${getApplication<Application>().packageName}.fileprovider",
+                    file
+                )
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(intent, "Export History")
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                getApplication<Application>().startActivity(chooser)
+                
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.toast_share_failed), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun triggerVibration() {
@@ -316,7 +382,7 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                 chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 getApplication<Application>().startActivity(chooser)
             } catch (e: Exception) {
-                Toast.makeText(getApplication(), "Failed to share image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.toast_share_failed), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -354,12 +420,12 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(getApplication(), "Image saved to gallery", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.toast_saved_gallery), Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(getApplication(), "Failed to save image", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.toast_save_failed), Toast.LENGTH_SHORT).show()
                 }
             }
         }

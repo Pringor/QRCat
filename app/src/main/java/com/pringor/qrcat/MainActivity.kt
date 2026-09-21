@@ -8,7 +8,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import com.google.android.gms.ads.MobileAds
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -21,13 +23,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -38,36 +38,46 @@ import androidx.navigation.compose.rememberNavController
 import com.pringor.qrcat.ui.*
 import com.pringor.qrcat.ui.theme.QRCatTheme
 
-sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    object Home : Screen("home", "Home", Icons.Default.Home)
-    object Scan : Screen("scan", "Scan", Icons.Default.QrCodeScanner)
-    object Generate : Screen("generate", "Generate", Icons.Default.AddBox)
-    object Library : Screen("library", "Library", Icons.Default.LibraryBooks)
-    object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+sealed class Screen(val route: String, val labelId: Int, val icon: ImageVector) {
+    object Home : Screen("home", R.string.nav_home, Icons.Default.Home)
+    object Scan : Screen("scan", R.string.nav_scan, Icons.Default.QrCodeScanner)
+    object Generate : Screen("generate", R.string.nav_generate, Icons.Default.AddBox)
+    object Library : Screen("library", R.string.nav_library, Icons.Default.LibraryBooks)
+    object Settings : Screen("settings", R.string.nav_settings, Icons.Default.Settings)
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     private val viewModel: ScanViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_QRCat)
         super.onCreate(savedInstanceState)
         MobileAds.initialize(this)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
             val themeConfig by viewModel.themeConfig.collectAsState()
-            val darkTheme = when (themeConfig) {
+            val language by viewModel.language.collectAsState()
+
+            // Official per-app language switching with check to prevent loops
+            LaunchedEffect(language) {
+                val targetTag = if (language == "Korean") "ko" else "en"
+                val currentTags = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+                if (currentTags != targetTag) {
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(targetTag))
+                }
+            }
+
+            QRCatTheme(darkTheme = when (themeConfig) {
                 "Light" -> false
                 "Dark" -> true
                 else -> isSystemInDarkTheme()
-            }
-
-            QRCatTheme(darkTheme = darkTheme) {
+            }) {
                 val navController = rememberNavController()
                 var hasCameraPermission by remember {
                     mutableStateOf(
                         ContextCompat.checkSelfPermission(
-                            this,
+                            this@MainActivity,
                             Manifest.permission.CAMERA
                         ) == PackageManager.PERMISSION_GRANTED
                     )
@@ -89,46 +99,41 @@ class MainActivity : ComponentActivity() {
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentDestination = navBackStackEntry?.destination
                         
-                        // Show bottom bar for all main tabs and the camera scanner
-                        val showBottomBar = true 
-                        
-                        if (showBottomBar) {
-                            NavigationBar {
-                                bottomNavItems.forEach { screen ->
-                                    val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                                    
-                                    NavigationBarItem(
-                                        icon = { Icon(screen.icon, contentDescription = null) },
-                                        label = { Text(screen.label) },
-                                        selected = isSelected,
-                                        onClick = {
-                                            if (screen.route == Screen.Home.route) {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        inclusive = true
-                                                    }
-                                                    launchSingleTop = true
+                        NavigationBar {
+                            bottomNavItems.forEach { screen ->
+                                val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                                
+                                NavigationBarItem(
+                                    icon = { Icon(screen.icon, contentDescription = null) },
+                                    label = { Text(stringResource(screen.labelId)) },
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (screen.route == Screen.Home.route) {
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    inclusive = true
                                                 }
-                                            } else if (screen.route == Screen.Scan.route) {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        saveState = false
-                                                    }
-                                                    launchSingleTop = true
-                                                    restoreState = false
+                                                launchSingleTop = true
+                                            }
+                                        } else if (screen.route == Screen.Scan.route) {
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = false
                                                 }
-                                            } else {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        saveState = true
-                                                    }
-                                                    launchSingleTop = true
-                                                    restoreState = true
+                                                launchSingleTop = true
+                                                restoreState = false
+                                            }
+                                        } else {
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
                                                 }
+                                                launchSingleTop = true
+                                                restoreState = true
                                             }
                                         }
-                                    )
-                                }
+                                    }
+                                )
                             }
                         }
                     }
@@ -147,7 +152,10 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f)
                         ) {
                             composable(Screen.Home.route) {
-                                HomeScreen(onNavigateToSettings = { navController.navigate(Screen.Settings.route) })
+                                HomeScreen(
+                                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                                    viewModel = viewModel
+                                )
                             }
                             composable(Screen.Scan.route) {
                                 ScanHubScreen(
@@ -191,7 +199,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Global Result Dialogs - Handle Camera, Gallery, and Share results anywhere
+                    // Global Result Dialogs
                     val lastResult by viewModel.lastResult.collectAsState()
                     val multipleResults by viewModel.multipleResults.collectAsState()
                     val scanMode by viewModel.scanMode.collectAsState()

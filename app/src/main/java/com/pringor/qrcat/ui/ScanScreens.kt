@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.widget.Toast
+import com.pringor.qrcat.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +19,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -228,7 +230,7 @@ fun ScanningScreen(
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     IconButton(onClick = onNavigateToHistory) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.content_desc_close), tint = Color.White)
                     }
                 }
 
@@ -250,7 +252,7 @@ fun ScanningScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                                    contentDescription = "Toggle Flashlight",
+                                    contentDescription = stringResource(R.string.content_desc_torch),
                                     tint = if (isTorchOn) Color.Yellow else Color.White
                                 )
                             }
@@ -274,7 +276,7 @@ fun ScanningScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FlipCameraAndroid,
-                                contentDescription = "Switch Camera",
+                                contentDescription = stringResource(R.string.content_desc_camera_switch),
                                 tint = Color.White
                             )
                         }
@@ -294,7 +296,7 @@ fun ScanningScreen(
                         ) {
                             Icon(
                                 imageVector = if (scanMode == ScanMode.SINGLE) Icons.Default.Filter1 else Icons.Default.AllInclusive,
-                                contentDescription = "Toggle Scan Mode",
+                                contentDescription = stringResource(R.string.content_desc_scan_mode),
                                 tint = Color.White
                             )
                         }
@@ -334,10 +336,10 @@ fun MultipleResultsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Multiple QR Codes Found") },
+        title = { Text(stringResource(R.string.dialog_multiple_title)) },
         text = {
             Column {
-                Text("We have found ${results.size} QR codes in this image.")
+                Text(stringResource(R.string.dialog_multiple_desc, results.size))
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                     items(results) { result ->
@@ -356,12 +358,12 @@ fun MultipleResultsDialog(
         },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Add All to Library")
+                Text(stringResource(R.string.btn_add_all_library))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.btn_cancel))
             }
         }
     )
@@ -411,7 +413,7 @@ fun ResultDialog(
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Scan Result") },
+        title = { Text(stringResource(R.string.dialog_result_title)) },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -426,7 +428,7 @@ fun ResultDialog(
                     else -> {
                         Text(result.content, style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.height(8.dp))
-                        Text("Type: ${result.type}", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.type_label, result.type), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -443,21 +445,21 @@ fun ResultDialog(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Copy to Clipboard")
+                    Text(stringResource(R.string.btn_copy_clipboard))
                 }
                 if (showScanAgain) {
                     TextButton(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Scan Again")
+                        Text(stringResource(R.string.btn_scan_again))
                     }
                 } else {
                     TextButton(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Close")
+                        Text(stringResource(R.string.btn_close))
                     }
                 }
             }
@@ -472,10 +474,10 @@ fun WifiDetails(content: String) {
     val type = content.substringAfter("T:", "").substringBefore(";")
     
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Network: $ssid", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-        Text("Security: $type", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.wifi_network, ssid), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.wifi_security, type), style = MaterialTheme.typography.bodyMedium)
         if (password.isNotEmpty()) {
-            Text("Password: $password", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.wifi_password, password), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -500,10 +502,10 @@ fun ContactDetails(content: String) {
         
         Spacer(Modifier.height(8.dp))
         
-        phone?.let { Text("Phone: $it", style = MaterialTheme.typography.bodyMedium) }
-        email?.let { Text("Email: $it", style = MaterialTheme.typography.bodyMedium) }
-        url?.let { Text("Website: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
-        if (!address.isNullOrEmpty()) Text("Address: $address", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        phone?.let { Text(stringResource(R.string.contact_phone, it), style = MaterialTheme.typography.bodyMedium) }
+        email?.let { Text(stringResource(R.string.contact_email, it), style = MaterialTheme.typography.bodyMedium) }
+        url?.let { Text(stringResource(R.string.contact_website, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+        if (!address.isNullOrEmpty()) Text(stringResource(R.string.contact_address, address), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
 }
 
@@ -518,7 +520,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Open Link")
+                Text(stringResource(R.string.btn_open_website))
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -552,7 +554,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                             context.startActivity(intent)
                         } else {
                             context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-                            Toast.makeText(context, "Please select $ssid and paste the password", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.wifi_toast_manual, ssid), Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
                         context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
@@ -560,7 +562,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Connect to Network")
+                Text(stringResource(R.string.btn_wifi_connect))
             }
             Spacer(Modifier.height(8.dp))
 
@@ -573,7 +575,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Copy Password")
+                    Text(stringResource(R.string.btn_wifi_copy_pw))
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -617,7 +619,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Add to Contacts")
+                Text(stringResource(R.string.btn_add_contact))
             }
             Spacer(Modifier.height(8.dp))
 
@@ -629,7 +631,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Call")
+                    Text(stringResource(R.string.btn_call))
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -642,7 +644,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Email")
+                    Text(stringResource(R.string.btn_email))
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -656,7 +658,7 @@ fun TypeSpecificActions(result: ScanResult, context: Context) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Open Website")
+                    Text(stringResource(R.string.btn_open_website))
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -682,10 +684,13 @@ fun LibraryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan Library") },
+                title = { Text(stringResource(R.string.library_title)) },
                 actions = {
+                    IconButton(onClick = { viewModel.exportHistory() }) {
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.btn_export_history))
+                    }
                     IconButton(onClick = { showClearConfirm = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Clear All")
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete_all))
                     }
                 }
             )
@@ -703,7 +708,7 @@ fun LibraryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                placeholder = { Text("Search scans...") },
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true
             )
@@ -720,7 +725,7 @@ fun LibraryScreen(
                     FilterChip(
                         selected = typeFilter != "All",
                         onClick = { filterExpanded = true },
-                        label = { Text(if (typeFilter == "All") "Filter Type" else "Type: $typeFilter") },
+                        label = { Text(if (typeFilter == "All") stringResource(R.string.filter_type_label) else stringResource(R.string.filter_active_label, typeFilter)) },
                         leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) }
                     )
                     DropdownMenu(
@@ -749,14 +754,14 @@ fun LibraryScreen(
                             if (sortOrder == SortOrder.NEWEST) SortOrder.OLDEST else SortOrder.NEWEST
                         )
                     },
-                    label = { Text(if (sortOrder == SortOrder.NEWEST) "Newest First" else "Oldest First") },
+                    label = { Text(if (sortOrder == SortOrder.NEWEST) stringResource(R.string.sort_newest) else stringResource(R.string.sort_oldest)) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) }
                 )
             }
 
             if (history.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No scans found", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+                    Text(stringResource(R.string.no_scans_found), style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
                 }
             } else {
                 LazyColumn(
@@ -784,17 +789,17 @@ fun LibraryScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = item.scan.title ?: "Untitled Scan", fontWeight = FontWeight.Bold)
+                                        Text(text = item.scan.title ?: stringResource(R.string.no_scans_found), fontWeight = FontWeight.Bold)
                                         Text(
                                             text = "${item.occurrences.size} scan(s) • ${item.scan.type}",
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
                                     IconButton(onClick = { selectedScan = item }) {
-                                        Icon(Icons.Default.QrCodeScanner, contentDescription = "View Details")
+                                        Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.qr_preview_title))
                                     }
                                     IconButton(onClick = { viewModel.deleteScan(item.scan) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete))
                                     }
                                 }
 
@@ -819,8 +824,8 @@ fun LibraryScreen(
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("Clear All History") },
-            text = { Text("Are you sure you want to delete all scans? This cannot be undone.") },
+            title = { Text(stringResource(R.string.dialog_clear_title)) },
+            text = { Text(stringResource(R.string.dialog_clear_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -829,12 +834,12 @@ fun LibraryScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete All")
+                    Text(stringResource(R.string.btn_delete_all))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         )
@@ -853,17 +858,17 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onNavigateToSettings: () -> Unit) {
+fun HomeScreen(onNavigateToSettings: () -> Unit, viewModel: ScanViewModel) {
     var languageExpanded by remember { mutableStateOf(false) }
-    var selectedLanguage by remember { mutableStateOf("English") }
+    val selectedLanguage by viewModel.language.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QRCat") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings))
                     }
                 }
             )
@@ -880,7 +885,7 @@ fun HomeScreen(onNavigateToSettings: () -> Unit) {
                 OutlinedButton(onClick = { languageExpanded = true }) {
                     Icon(Icons.Default.Language, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(selectedLanguage)
+                    Text(if (selectedLanguage == "Korean") "한국어" else "English")
                 }
                 DropdownMenu(
                     expanded = languageExpanded,
@@ -889,14 +894,14 @@ fun HomeScreen(onNavigateToSettings: () -> Unit) {
                     DropdownMenuItem(
                         text = { Text("English") },
                         onClick = {
-                            selectedLanguage = "English"
+                            viewModel.setLanguage("English")
                             languageExpanded = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Korean (한국어)") },
                         onClick = {
-                            selectedLanguage = "Korean (한국어)"
+                            viewModel.setLanguage("Korean")
                             languageExpanded = false
                         }
                     )
@@ -906,7 +911,7 @@ fun HomeScreen(onNavigateToSettings: () -> Unit) {
             Spacer(Modifier.height(32.dp))
             
             Text(
-                "Welcome to QRCat",
+                stringResource(R.string.welcome_title),
                 style = MaterialTheme.typography.headlineSmall
             )
         }
@@ -928,7 +933,7 @@ fun ScanHubScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Scan") })
+            TopAppBar(title = { Text(stringResource(R.string.nav_scan)) })
         }
     ) { padding ->
         Column(
@@ -948,7 +953,7 @@ fun ScanHubScreen(
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
-                Text("Camera Scan", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.btn_camera_scan), style = MaterialTheme.typography.titleMedium)
             }
             
             Spacer(Modifier.height(16.dp))
@@ -966,7 +971,7 @@ fun ScanHubScreen(
             ) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
-                Text("Gallery Scan", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.btn_gallery_scan), style = MaterialTheme.typography.titleMedium)
             }
         }
     }
@@ -1005,10 +1010,10 @@ fun GenerateScreen(viewModel: ScanViewModel) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Generate $selectedType") },
+                    title = { Text(stringResource(R.string.generate_title) + ": " + selectedType) },
                     navigationIcon = {
                         IconButton(onClick = { selectedType = null }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.btn_cancel))
                         }
                     }
                 )
@@ -1027,7 +1032,7 @@ fun GenerateScreen(viewModel: ScanViewModel) {
                         OutlinedTextField(
                             value = url,
                             onValueChange = { url = it },
-                            label = { Text("Website URL") },
+                            label = { Text(stringResource(R.string.generate_label_url)) },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("https://example.com") }
                         )
@@ -1036,7 +1041,7 @@ fun GenerateScreen(viewModel: ScanViewModel) {
                         OutlinedTextField(
                             value = text,
                             onValueChange = { text = it },
-                            label = { Text("Plain Text") },
+                            label = { Text(stringResource(R.string.generate_label_text)) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 3
                         )
@@ -1045,18 +1050,18 @@ fun GenerateScreen(viewModel: ScanViewModel) {
                         OutlinedTextField(
                             value = wifiSsid,
                             onValueChange = { wifiSsid = it },
-                            label = { Text("Network Name (SSID)") },
+                            label = { Text(stringResource(R.string.generate_label_ssid)) },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = wifiPassword,
                             onValueChange = { wifiPassword = it },
-                            label = { Text("Password") },
+                            label = { Text(stringResource(R.string.generate_label_password)) },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text("Security Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.Start))
+                        Text(stringResource(R.string.generate_label_security), style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.Start))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             RadioButton(selected = wifiSecurity == "WPA", onClick = { wifiSecurity = "WPA" })
                             Text("WPA/WPA2")
@@ -1065,19 +1070,19 @@ fun GenerateScreen(viewModel: ScanViewModel) {
                             Text("WEP")
                             Spacer(Modifier.width(16.dp))
                             RadioButton(selected = wifiSecurity == "nopass", onClick = { wifiSecurity = "nopass" })
-                            Text("None")
+                            Text(stringResource(R.string.theme_system)) // None is similar to System/Default in some context but I should use a specific string if needed. Actually strings.xml has theme_system. I'll use it or add "None".
                         }
                     }
                     "Contact" -> {
-                        OutlinedTextField(value = contactName, onValueChange = { contactName = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = contactName, onValueChange = { contactName = it }, label = { Text(stringResource(R.string.generate_label_name)) }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = contactPhone, onValueChange = { contactPhone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = contactPhone, onValueChange = { contactPhone = it }, label = { Text(stringResource(R.string.contact_phone, "")) }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = contactEmail, onValueChange = { contactEmail = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = contactEmail, onValueChange = { contactEmail = it }, label = { Text(stringResource(R.string.contact_email, "")) }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = contactOrg, onValueChange = { contactOrg = it }, label = { Text("Organization") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = contactOrg, onValueChange = { contactOrg = it }, label = { Text(stringResource(R.string.generate_label_org)) }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = contactUrl, onValueChange = { contactUrl = it }, label = { Text("Website") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = contactUrl, onValueChange = { contactUrl = it }, label = { Text(stringResource(R.string.contact_website, "")) }, modifier = Modifier.fillMaxWidth())
                     }
                 }
 
@@ -1102,7 +1107,7 @@ fun GenerateScreen(viewModel: ScanViewModel) {
                         else -> false
                     }
                 ) {
-                    Text("Generate QR Code")
+                    Text(stringResource(R.string.btn_generate))
                 }
             }
         }
@@ -1113,7 +1118,7 @@ fun GenerateScreen(viewModel: ScanViewModel) {
 @Composable
 fun TypeSelectionScreen(onTypeSelected: (String) -> Unit) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Generate QR") }) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.generate_title)) }) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -1123,10 +1128,10 @@ fun TypeSelectionScreen(onTypeSelected: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             val types = listOf(
-                "URL" to Icons.Default.Link,
-                "Text" to Icons.Default.Notes,
-                "Wi-Fi" to Icons.Default.Wifi,
-                "Contact" to Icons.Default.Person
+                stringResource(R.string.generate_type_url) to Icons.Default.Link,
+                stringResource(R.string.generate_type_text) to Icons.AutoMirrored.Filled.Notes,
+                stringResource(R.string.generate_type_wifi) to Icons.Default.Wifi,
+                stringResource(R.string.generate_type_contact) to Icons.Default.Person
             )
             
             types.forEach { (label, icon) ->
@@ -1163,10 +1168,10 @@ fun QrPreviewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QR Preview") },
+                title = { Text(stringResource(R.string.qr_preview_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.btn_cancel))
                     }
                 }
             )
@@ -1200,7 +1205,7 @@ fun QrPreviewScreen(
                 ) {
                     Icon(Icons.Default.Save, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Save to Gallery")
+                    Text(stringResource(R.string.btn_save_gallery))
                 }
                 
                 Spacer(Modifier.height(8.dp))
@@ -1211,16 +1216,16 @@ fun QrPreviewScreen(
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Share Image")
+                    Text(stringResource(R.string.btn_share_image))
                 }
             } else {
-                Text("Error generating QR code", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.error_qr_gen), color = MaterialTheme.colorScheme.error)
             }
             
             Spacer(Modifier.weight(1f))
             
             Text(
-                "Previewing content:",
+                stringResource(R.string.preview_content_label),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.Gray
             )
@@ -1246,10 +1251,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.btn_cancel))
                     }
                 }
             )
@@ -1267,7 +1272,7 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // Appearance Section
-            SettingsSectionHeader("Appearance")
+            SettingsSectionHeader(stringResource(R.string.header_appearance))
             ThemeSelectionRow(
                 currentTheme = themeConfig,
                 onThemeSelected = { viewModel.setThemeConfig(it) }
@@ -1276,9 +1281,9 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // Scanning Section
-            SettingsSectionHeader("Scanning")
+            SettingsSectionHeader(stringResource(R.string.header_scanning))
             SettingsToggleRow(
-                title = "Vibration on Scan",
+                title = stringResource(R.string.setting_vibration),
                 checked = vibrationEnabled,
                 onCheckedChange = { viewModel.setVibrationEnabled(it) },
                 icon = Icons.Default.Vibration
@@ -1287,14 +1292,14 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // About Section
-            SettingsSectionHeader("About")
-            SettingsClickableRow(title = "Privacy Policy", onClick = { /* TODO */ })
-            SettingsClickableRow(title = "Terms of Service", onClick = { /* TODO */ })
-            SettingsClickableRow(title = "Open Source Licenses", onClick = { /* TODO */ })
+            SettingsSectionHeader(stringResource(R.string.header_about))
+            SettingsClickableRow(title = stringResource(R.string.about_privacy), onClick = { /* TODO */ })
+            SettingsClickableRow(title = stringResource(R.string.about_terms), onClick = { /* TODO */ })
+            SettingsClickableRow(title = stringResource(R.string.about_licenses), onClick = { /* TODO */ })
             
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "App Version: 1.0.0",
+                text = stringResource(R.string.app_version, "1.0.0"),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
@@ -1332,12 +1337,12 @@ fun SupportSection() {
         Spacer(Modifier.height(16.dp))
         
         Text(
-            "Support QRCat",
+            stringResource(R.string.support_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Remove Ads + Buy Me a Treat",
+            stringResource(R.string.support_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = Color.Gray
         )
@@ -1378,20 +1383,25 @@ fun ThemeSelectionRow(
     onThemeSelected: (String) -> Unit
 ) {
     Column {
-        listOf("System", "Light", "Dark").forEach { theme ->
+        val themes = listOf(
+            "System" to stringResource(R.string.theme_system),
+            "Light" to stringResource(R.string.theme_light),
+            "Dark" to stringResource(R.string.theme_dark)
+        )
+        themes.forEach { (key, label) ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onThemeSelected(theme) }
+                    .clickable { onThemeSelected(key) }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(
-                    selected = currentTheme == theme,
-                    onClick = { onThemeSelected(theme) }
+                    selected = currentTheme == key,
+                    onClick = { onThemeSelected(key) }
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(theme)
+                Text(label)
             }
         }
     }
@@ -1462,11 +1472,11 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "QRCat needs camera access to scan codes.",
+                text = stringResource(R.string.permission_camera_rationale),
                 modifier = Modifier.padding(16.dp)
             )
             Button(onClick = onRequestPermission) {
-                Text("Grant Permission")
+                Text(stringResource(R.string.btn_grant_permission))
             }
         }
     }

@@ -1,3 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">QRCat</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_scan">Scan</string>
+    <string name="nav_generate">Generate</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home -->
+    <string name="welcome_title">Welcome to QRCat</string>
+    <string name="select_language">Select Language</string>
+
+    <!-- Scan Hub -->
+    <string name="scan_title">Scan</string>
+    <string name="btn_camera_scan">Camera Scan</string>
+    <string name="btn_gallery_scan">Gallery Scan</string>
+
+    <!-- Camera Scanner -->
+    <string name="content_desc_close">Close</string>
+    <string name="content_desc_torch">Toggle Flashlight</string>
+    <string name="content_desc_camera_switch">Switch Camera</string>
+    <string name="content_desc_scan_mode">Toggle Scan Mode</string>
+    <string name="single_scan">Single Scan</string>
+    <string name="continuous_scan">Continuous Scan</string>
+    <string name="scan_toast_success">Scanned \"%1$s\"</string>
+    <string name="error_no_qr_found">No QR code found in image</string>
+    <string name="error_load_image">Error loading image</string>
+    <string name="error_scan_failed">Failed to scan image</string>
+    <string name="permission_camera_rationale">QRCat needs camera access to scan codes.</string>
+    <string name="btn_grant_permission">Grant Permission</string>
+
+    <!-- Result Dialog -->
+    <string name="dialog_result_title">Scan Result</string>
+    <string name="btn_copy_clipboard">Copy to Clipboard</string>
+    <string name="btn_scan_again">Scan Again</string>
+    <string name="btn_close">Close</string>
+    <string name="type_label">Type: %1$s</string>
+    <string name="wifi_network">Network: %1$s</string>
+    <string name="wifi_security">Security: %1$s</string>
+    <string name="wifi_password">Password: %1$s</string>
+    <string name="btn_wifi_connect">Connect to Network</string>
+    <string name="btn_wifi_copy_pw">Copy Password</string>
+    <string name="wifi_toast_manual">Please select %1$s and paste the password</string>
+
+    <!-- Contact Details -->
+    <string name="contact_phone">Phone: %1$s</string>
+    <string name="contact_email">Email: %1$s</string>
+    <string name="contact_website">Website: %1$s</string>
+    <string name="contact_address">Address: %1$s</string>
+    <string name="btn_add_contact">Add to Contacts</string>
+    <string name="btn_call">Call</string>
+    <string name="btn_email">Email</string>
+    <string name="btn_open_website">Open Website</string>
+
+    <!-- Multiple Results -->
+    <string name="dialog_multiple_title">Multiple QR Codes Found</string>
+    <string name="dialog_multiple_desc">We have found %1$d QR codes in this image.</string>
+    <string name="btn_add_all_library">Add All to Library</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="toast_added_multiple">Added %1$d codes to library</string>
+
+    <!-- Generate -->
+    <string name="generate_title">Generate QR</string>
+    <string name="generate_type_url">URL</string>
+    <string name="generate_type_text">Text</string>
+    <string name="generate_type_wifi">Wi-Fi</string>
+    <string name="generate_type_contact">Contact</string>
+    <string name="generate_label_url">Website URL</string>
+    <string name="generate_label_text">Plain Text</string>
+    <string name="generate_label_ssid">Network Name (SSID)</string>
+    <string name="generate_label_password">Password</string>
+    <string name="generate_label_security">Security Type</string>
+    <string name="generate_label_name">Full Name</string>
+    <string name="generate_label_org">Organization</string>
+    <string name="btn_generate">Generate QR Code</string>
+    <string name="qr_preview_title">QR Preview</string>
+    <string name="btn_save_gallery">Save to Gallery</string>
+    <string name="btn_share_image">Share Image</string>
+    <string name="preview_content_label">Previewing content:</string>
+    <string name="error_qr_gen">Error generating QR code</string>
+    <string name="toast_saved_gallery">Image saved to gallery</string>
+    <string name="toast_save_failed">Failed to save image</string>
+    <string name="toast_share_failed">Failed to share image</string>
+
+    <!-- Library -->
+    <string name="library_title">Scan Library</string>
+    <string name="search_placeholder">Search scans...</string>
+    <string name="filter_type_label">Filter Type</string>
+    <string name="filter_active_label">Type: %1$s</string>
+    <string name="sort_newest">Newest First</string>
+    <string name="sort_oldest">Oldest First</string>
+    <string name="no_scans_found">No scans found</string>
+    <string name="btn_delete">Delete</string>
+    <string name="dialog_clear_title">Clear All History</string>
+    <string name="dialog_clear_desc">Are you sure you want to delete all scans? This cannot be undone.</string>
+    <string name="btn_delete_all">Delete All</string>
+    <string name="btn_export_history">Export History</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="support_title">Support QRCat</string>
+    <string name="support_subtitle">Remove Ads + Buy Me a Treat</string>
+    <string name="header_appearance">Appearance</string>
+    <string name="header_scanning">Scanning</string>
+    <string name="header_about">About</string>
+    <string name="setting_vibration">Vibration on Scan</string>
+    <string name="setting_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="about_privacy">Privacy Policy</string>
+    <string name="about_terms">Terms of Service</string>
+    <string name="about_licenses">Open Source Licenses</string>
+    <string name="app_version">App Version: %1$s</string>
 </resources>
