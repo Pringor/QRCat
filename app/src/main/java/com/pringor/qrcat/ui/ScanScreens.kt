@@ -18,6 +18,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -852,7 +853,7 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(onNavigateToSettings: () -> Unit) {
     var languageExpanded by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("English") }
 
@@ -861,7 +862,7 @@ fun HomeScreen() {
             TopAppBar(
                 title = { Text("QRCat") },
                 actions = {
-                    IconButton(onClick = { /* Settings */ }) {
+                    IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
@@ -1230,6 +1231,208 @@ fun QrPreviewScreen(
                 textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    viewModel: ScanViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val vibrationEnabled by viewModel.vibrationEnabled.collectAsStateWithLifecycle()
+    val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Support Section
+            SupportSection()
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // Appearance Section
+            SettingsSectionHeader("Appearance")
+            ThemeSelectionRow(
+                currentTheme = themeConfig,
+                onThemeSelected = { viewModel.setThemeConfig(it) }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // Scanning Section
+            SettingsSectionHeader("Scanning")
+            SettingsToggleRow(
+                title = "Vibration on Scan",
+                checked = vibrationEnabled,
+                onCheckedChange = { viewModel.setVibrationEnabled(it) },
+                icon = Icons.Default.Vibration
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // About Section
+            SettingsSectionHeader("About")
+            SettingsClickableRow(title = "Privacy Policy", onClick = { /* TODO */ })
+            SettingsClickableRow(title = "Terms of Service", onClick = { /* TODO */ })
+            SettingsClickableRow(title = "Open Source Licenses", onClick = { /* TODO */ })
+            
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "App Version: 1.0.0",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        }
+    }
+}
+
+@Composable
+fun SupportSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Mascot Placeholder
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(50.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Pets, 
+                contentDescription = null, 
+                modifier = Modifier.size(60.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Text(
+            "Support QRCat",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "Remove Ads + Buy Me a Treat",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("$1", "$5", "$20").forEach { price ->
+                Button(
+                    onClick = { /* Mock Purchase Logic */ },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(price)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
+fun ThemeSelectionRow(
+    currentTheme: String,
+    onThemeSelected: (String) -> Unit
+) {
+    Column {
+        listOf("System", "Light", "Dark").forEach { theme ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onThemeSelected(theme) }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = currentTheme == theme,
+                    onClick = { onThemeSelected(theme) }
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(theme)
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.Gray)
+        Spacer(Modifier.width(16.dp))
+        Text(text = title, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+fun SettingsClickableRow(
+    title: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = title)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color.Gray)
     }
 }
 

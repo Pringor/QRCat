@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Scan : Screen("scan", "Scan", Icons.Default.QrCodeScanner)
     object Generate : Screen("generate", "Generate", Icons.Default.AddBox)
     object Library : Screen("library", "Library", Icons.Default.LibraryBooks)
+    object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
 class MainActivity : ComponentActivity() {
@@ -53,7 +55,14 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
-            QRCatTheme {
+            val themeConfig by viewModel.themeConfig.collectAsState()
+            val darkTheme = when (themeConfig) {
+                "Light" -> false
+                "Dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+
+            QRCatTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
                 var hasCameraPermission by remember {
                     mutableStateOf(
@@ -138,7 +147,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f)
                         ) {
                             composable(Screen.Home.route) {
-                                HomeScreen()
+                                HomeScreen(onNavigateToSettings = { navController.navigate(Screen.Settings.route) })
                             }
                             composable(Screen.Scan.route) {
                                 ScanHubScreen(
@@ -171,6 +180,12 @@ class MainActivity : ComponentActivity() {
                                 LibraryScreen(
                                     viewModel = viewModel,
                                     onNavigateToCamera = { navController.navigate("camera_scanner") }
+                                )
+                            }
+                            composable(Screen.Settings.route) {
+                                SettingsScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = { navController.popBackStack() }
                                 )
                             }
                         }

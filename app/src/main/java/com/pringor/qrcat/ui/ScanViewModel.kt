@@ -54,6 +54,12 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAdsEnabled = MutableStateFlow(true)
     val isAdsEnabled: StateFlow<Boolean> = _isAdsEnabled.asStateFlow()
 
+    private val _vibrationEnabled = MutableStateFlow(true)
+    val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
+
+    private val _themeConfig = MutableStateFlow("System")
+    val themeConfig: StateFlow<String> = _themeConfig.asStateFlow()
+
     private val _scanMode = MutableStateFlow(ScanMode.SINGLE)
     val scanMode: StateFlow<ScanMode> = _scanMode.asStateFlow()
 
@@ -242,7 +248,17 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
         _multipleResults.value = null
     }
 
+    fun setVibrationEnabled(enabled: Boolean) {
+        _vibrationEnabled.value = enabled
+    }
+
+    fun setThemeConfig(config: String) {
+        _themeConfig.value = config
+    }
+
     private fun triggerVibration() {
+        if (!_vibrationEnabled.value) return
+        
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = getApplication<Application>().getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
             vibratorManager.defaultVibrator
