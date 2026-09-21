@@ -66,7 +66,28 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.delay
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+
+@Composable
+fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+
+    AndroidView(
+        factory = { ctx ->
+            AdView(ctx).apply {
+                adUnitId = "ca-app-pub-3940256099942544/6300978111" // Test ID
+                setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, screenWidth))
+                loadAd(AdRequest.Builder().build())
+            }
+        },
+        modifier = modifier.fillMaxWidth()
+    )
+}
 
 @Composable
 fun ScanningScreen(

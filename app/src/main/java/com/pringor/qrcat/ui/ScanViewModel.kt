@@ -51,6 +51,9 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
             .build()
     )
 
+    private val _isAdsEnabled = MutableStateFlow(true)
+    val isAdsEnabled: StateFlow<Boolean> = _isAdsEnabled.asStateFlow()
+
     private val _scanMode = MutableStateFlow(ScanMode.SINGLE)
     val scanMode: StateFlow<ScanMode> = _scanMode.asStateFlow()
 

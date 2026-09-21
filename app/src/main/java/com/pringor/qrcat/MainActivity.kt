@@ -7,12 +7,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
+import com.google.android.gms.ads.MobileAds
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MobileAds.initialize(this)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
@@ -69,6 +72,7 @@ class MainActivity : ComponentActivity() {
                 )
 
                 val bottomNavItems = listOf(Screen.Home, Screen.Scan, Screen.Generate, Screen.Library)
+                val isAdsEnabled by viewModel.isAdsEnabled.collectAsState()
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -120,46 +124,55 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = Screen.Home.route,
-                        modifier = Modifier.padding(innerPadding)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
                     ) {
-                        composable(Screen.Home.route) {
-                            HomeScreen()
+                        if (isAdsEnabled) {
+                            AdaptiveBannerAd()
                         }
-                        composable(Screen.Scan.route) {
-                            ScanHubScreen(
-                                onNavigateToCamera = {
-                                    navController.navigate("camera_scanner")
-                                },
-                                viewModel = viewModel
-                            )
-                        }
-                        composable("camera_scanner") {
-                            if (hasCameraPermission) {
-                                ScanningScreen(
-                                    viewModel = viewModel,
-                                    onNavigateToHistory = {
-                                        navController.popBackStack()
-                                    }
-                                )
-                            } else {
-                                PermissionRequestScreen(
-                                    onRequestPermission = {
-                                        launcher.launch(Manifest.permission.CAMERA)
-                                    }
+                        NavHost(
+                            navController = navController,
+                            startDestination = Screen.Home.route,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            composable(Screen.Home.route) {
+                                HomeScreen()
+                            }
+                            composable(Screen.Scan.route) {
+                                ScanHubScreen(
+                                    onNavigateToCamera = {
+                                        navController.navigate("camera_scanner")
+                                    },
+                                    viewModel = viewModel
                                 )
                             }
-                        }
-                        composable(Screen.Generate.route) {
-                            GenerateScreen(viewModel = viewModel)
-                        }
-                        composable(Screen.Library.route) {
-                            LibraryScreen(
-                                viewModel = viewModel,
-                                onNavigateToCamera = { navController.navigate("camera_scanner") }
-                            )
+                            composable("camera_scanner") {
+                                if (hasCameraPermission) {
+                                    ScanningScreen(
+                                        viewModel = viewModel,
+                                        onNavigateToHistory = {
+                                            navController.popBackStack()
+                                        }
+                                    )
+                                } else {
+                                    PermissionRequestScreen(
+                                        onRequestPermission = {
+                                            launcher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    )
+                                }
+                            }
+                            composable(Screen.Generate.route) {
+                                GenerateScreen(viewModel = viewModel)
+                            }
+                            composable(Screen.Library.route) {
+                                LibraryScreen(
+                                    viewModel = viewModel,
+                                    onNavigateToCamera = { navController.navigate("camera_scanner") }
+                                )
+                            }
                         }
                     }
 
