@@ -83,7 +83,12 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
     AndroidView(
         factory = { ctx ->
             AdView(ctx).apply {
-                adUnitId = "ca-app-pub-3940256099942544/6300978111" // Test ID
+                // TEST AD UNIT ID (official Google test ID)
+                // adUnitId = "ca-app-pub-3940256099942544/6300978111" 
+                
+                // PRODUCTION AD UNIT ID
+                adUnitId = "ca-app-pub-3323440240351174/2289084506"
+                
                 setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, screenWidth))
                 loadAd(AdRequest.Builder().build())
             }
